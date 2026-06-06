@@ -27,6 +27,56 @@ constexpr int STATUS_STALE_MS = 1500;
 constexpr int STATUS_UPDATE_MS = 100;
 constexpr int RECONNECT_INTERVAL_MS = 3000;
 constexpr int TEST_TIMEOUT_MS = 2000;
+constexpr int CONTEXT_STALE_HOLD_MS = 2000;
+constexpr auto CONTEXT_FREE_FLIGHT = "FREE_FLIGHT";
+constexpr auto CONTEXT_APPROACH_SURFACE = "APPROACH_SURFACE";
+constexpr auto CONTEXT_CONTACT_EXPECTED = "CONTACT_EXPECTED";
+constexpr auto CONTEXT_RETREAT = "RETREAT";
+constexpr auto COLOR_GRAY = "#666666";
+constexpr auto COLOR_GREEN = "#12b886";
+constexpr auto COLOR_YELLOW = "#ffd43b";
+constexpr auto COLOR_RED = "#e03131";
+constexpr auto COLOR_CONTACT_BLUE = "#4682b4";
+struct ProximityThresholdRow {
+    const char* context;
+    double redBelowM;
+    double yellowToM;
+    double blueFromM;
+    double blueToM;
+};
+
+constexpr double NO_BAND = -1.0;
+constexpr ProximityThresholdRow PROXIMITY_THRESHOLDS[] = {
+    {CONTEXT_FREE_FLIGHT, 0.7, 2.5, NO_BAND, NO_BAND},
+    {CONTEXT_APPROACH_SURFACE, 0.25, 0.7, NO_BAND, NO_BAND},
+    {CONTEXT_CONTACT_EXPECTED, 0.15, NO_BAND, 0.15, 0.45},
+    {CONTEXT_RETREAT, 0.25, 0.7, NO_BAND, NO_BAND},
+};
+
+const ProximityThresholdRow& proximityThresholdsForContext(const QString& context)
+{
+    for (const ProximityThresholdRow& row : PROXIMITY_THRESHOLDS) {
+        if (context == QString::fromLatin1(row.context)) {
+            return row;
+        }
+    }
+    return PROXIMITY_THRESHOLDS[0];
+}
+
+QString proximityColorFromThresholds(const ProximityThresholdRow& row, double distance)
+{
+    if (distance < row.redBelowM) {
+        return QString::fromLatin1(COLOR_RED);
+    }
+    if (row.blueFromM >= 0.0 && distance >= row.blueFromM && distance <= row.blueToM) {
+        return QString::fromLatin1(COLOR_CONTACT_BLUE);
+    }
+    if (row.yellowToM >= 0.0 && distance <= row.yellowToM) {
+        return QString::fromLatin1(COLOR_YELLOW);
+    }
+    return QString::fromLatin1(COLOR_GREEN);
+}
+
 constexpr int MAX_BUFFER_SIZE = 256 * 1024;
 constexpr auto DEFAULT_CLST_HOST = "127.0.0.1";
 constexpr quint16 DEFAULT_CLST_PORT = 7778;
@@ -67,6 +117,83 @@ int CustomStatusReceiver::lastAgeMs() const
         return -1;
     }
     return static_cast<int>(_lastStatusTime.elapsed());
+}
+
+QVariantList CustomStatusReceiver::activeErrors() const
+{
+    if (!_linkAlive) {
+        return QVariantList();
+    }
+    return _errorCatalog.activeErrorList(_errors);
+}
+
+bool CustomStatusReceiver::scanBlockedByError() const
+{
+    return !scanBlockReason().isEmpty();
+}
+
+QString CustomStatusReceiver::scanBlockReason() const
+{
+    if (!_linkAlive) {
+        return QString();
+    }
+    return _errorCatalog.firstScanBlockReason(_errors);
+}
+
+QString CustomStatusReceiver::proximityContextFor(const QString& missionState, const QString& missionStage) const
+{
+    const QString state = missionState.trimmed().toUpper();
+    const QString stage = missionStage.trimmed().toUpper();
+
+    if (state == QStringLiteral("IDLE") || state == QStringLiteral("ARMED")) {
+        return QString::fromLatin1(CONTEXT_FREE_FLIGHT);
+    }
+    if (state == QStringLiteral("RUN") && (stage.isEmpty() || stage == QStringLiteral("NEXT"))) {
+        return QString::fromLatin1(CONTEXT_FREE_FLIGHT);
+    }
+    if (stage == QStringLiteral("APPROACH") || stage == QStringLiteral("ALIGN")) {
+        return QString::fromLatin1(CONTEXT_APPROACH_SURFACE);
+    }
+    if (stage == QStringLiteral("PRESS") || stage == QStringLiteral("HOLD") || stage == QStringLiteral("EXTEND") || stage == QStringLiteral("MEASURE") || stage == QStringLiteral("RETRACT")) {
+        return QString::fromLatin1(CONTEXT_CONTACT_EXPECTED);
+    }
+    if (stage == QStringLiteral("RELEASE")) {
+        return QString::fromLatin1(CONTEXT_RETREAT);
+    }
+    return QString::fromLatin1(CONTEXT_FREE_FLIGHT);
+}
+
+QString CustomStatusReceiver::proximityContext() const
+{
+    if (_lastStatusTime.isValid() && _lastStatusTime.elapsed() <= CONTEXT_STALE_HOLD_MS) {
+        return _lastProximityContext;
+    }
+    return QString::fromLatin1(CONTEXT_FREE_FLIGHT);
+}
+
+QString CustomStatusReceiver::proximityContextLabel() const
+{
+    const QString context = proximityContext();
+    if (context == QString::fromLatin1(CONTEXT_APPROACH_SURFACE)) {
+        return QStringLiteral("APPROACH");
+    }
+    if (context == QString::fromLatin1(CONTEXT_CONTACT_EXPECTED)) {
+        return QStringLiteral("CONTACT");
+    }
+    if (context == QString::fromLatin1(CONTEXT_RETREAT)) {
+        return QStringLiteral("RETREAT");
+    }
+    return QStringLiteral("FREE");
+}
+
+QString CustomStatusReceiver::proximityColor(int sectorIndex, double distance) const
+{
+    if (!_linkAlive || distance < 0.0) {
+        return QString::fromLatin1(COLOR_GRAY);
+    }
+
+    const QString context = sectorIndex == 0 ? proximityContext() : QString::fromLatin1(CONTEXT_FREE_FLIGHT);
+    return proximityColorFromThresholds(proximityThresholdsForContext(context), distance);
 }
 
 void CustomStatusReceiver::_loadNetworkSettings()
@@ -247,6 +374,7 @@ bool CustomStatusReceiver::_parseLine(const QByteArray& line)
     _source = source;
     _missionState = mission.value(QStringLiteral("state")).toString(QStringLiteral("IDLE"));
     _missionStage = mission.value(QStringLiteral("stage")).toString(QStringLiteral("IDLE"));
+    _lastProximityContext = proximityContextFor(_missionState, _missionStage);
     _progress = static_cast<float>(std::clamp(mission.value(QStringLiteral("progress")).toDouble(0.0), 0.0, 1.0));
     _message = mission.value(QStringLiteral("message")).toString();
     _canAbort = mission.value(QStringLiteral("can_abort")).toBool(false);
@@ -309,6 +437,7 @@ void CustomStatusReceiver::_resetData()
     _evRateHz = 0.0f;
     _recActive = false;
     _errors.clear();
+    _lastProximityContext = QString::fromLatin1(CONTEXT_FREE_FLIGHT);
 }
 
 void CustomStatusReceiver::testConnection(const QString& host, int port)

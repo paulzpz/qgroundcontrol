@@ -74,6 +74,10 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPointCloudReceiver.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomStatusReceiver.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomStatusReceiver.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ErrorCatalog.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ErrorCatalog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/InspectionProject.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/InspectionProject.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PointCloudGeometry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PointCloudGeometry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PointCloudGridGeometry.cc

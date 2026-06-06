@@ -12,6 +12,7 @@
 #include "CustomPlugin.h"
 #include "CustomPointCloudReceiver.h"
 #include "CustomStatusReceiver.h"
+#include "InspectionProject.h"
 #include "PointCloudGeometry.h"
 #include "PointCloudGridGeometry.h"
 #include "QmlComponentInfo.h"
@@ -84,9 +85,13 @@ CustomPlugin::CustomPlugin(QObject *parent)
     , _options(new CustomOptions(this, this))
     , _pointCloudReceiver(new CustomPointCloudReceiver(this))
     , _statusReceiver(new CustomStatusReceiver(this))
+    , _inspectionProject(new InspectionProject(this))
 {
     _showAdvancedUI = false;
     connect(this, &QGCCorePlugin::showAdvancedUIChanged, this, &CustomPlugin::_advancedChanged);
+    if (_inspectionProject) {
+        _inspectionProject->setSourceReceivers(_pointCloudReceiver, _statusReceiver);
+    }
 }
 
 CustomPlugin::~CustomPlugin()
@@ -109,6 +114,10 @@ void CustomPlugin::init()
     qmlRegisterUncreatableType<CustomStatusReceiver>(
         "Custom.PointCloud", 1, 0, "CustomStatusReceiver",
         "Access via CustomPlugin.statusReceiver"
+    );
+    qmlRegisterUncreatableType<InspectionProject>(
+        "Custom.Project", 1, 0, "InspectionProject",
+        "Access via CustomPlugin.inspectionProject"
     );
 
     // Register point cloud geometries for QML

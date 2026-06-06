@@ -18,6 +18,7 @@
 #include "QGCOptions.h"
 #include "CustomPointCloudReceiver.h"
 #include "CustomStatusReceiver.h"
+#include "InspectionProject.h"
 
 class CustomOptions;
 class CustomPlugin;
@@ -62,6 +63,7 @@ class CustomPlugin : public QGCCorePlugin
     Q_PROPERTY(QString customVersion READ customVersion CONSTANT)
     Q_PROPERTY(CustomPointCloudReceiver* pointCloudReceiver READ pointCloudReceiver CONSTANT)
     Q_PROPERTY(CustomStatusReceiver* statusReceiver READ statusReceiver CONSTANT)
+    Q_PROPERTY(InspectionProject* inspectionProject READ inspectionProject CONSTANT)
 
 public:
     explicit CustomPlugin(QObject *parent = nullptr);
@@ -70,6 +72,7 @@ public:
     QString customVersion() const { return QStringLiteral("1.0.0"); }
     CustomPointCloudReceiver* pointCloudReceiver() { return _pointCloudReceiver; }
     CustomStatusReceiver* statusReceiver() { return _statusReceiver; }
+    InspectionProject* inspectionProject() { return _inspectionProject; }
 
     static QGCCorePlugin *instance();
 
@@ -97,6 +100,7 @@ private:
     QVariantList    _customSettingsList; // Not to be mixed up with QGCCorePlugin implementation
     CustomPointCloudReceiver* _pointCloudReceiver = nullptr;
     CustomStatusReceiver* _statusReceiver = nullptr;
+    InspectionProject* _inspectionProject = nullptr;
 };
 
 /*===========================================================================*/

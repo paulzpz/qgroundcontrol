@@ -22,6 +22,8 @@ import QGroundControl.ScreenTools
 import Custom.Widgets
 
 Item {
+    id: rootItem
+
     property var parentToolInsets                       // These insets tell you what screen real estate is available for positioning the controls in your overlay
     property var totalToolInsets: _totalToolInsets    // The insets updated for the custom overlay additions
     property var mapControl
@@ -138,6 +140,53 @@ Item {
         }
     }
 
+    Loader {
+        id: inspectionProjectDialogLoader
+        active: false
+        source: "qrc:/Custom/qml/Custom/InspectionProjectDialog.qml"
+        onLoaded: {
+            item.project = rootItem._inspectionProject;
+            item.closed.connect(function () {
+                inspectionProjectDialogLoader.active = false;
+            });
+            item.open();
+        }
+    }
+
+    Rectangle {
+        id: inspectionProjectChip
+        anchors.top: clpcDebugPanel.bottom
+        anchors.left: parent.left
+        anchors.topMargin: ScreenTools.defaultFontPixelHeight * 0.5
+        anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 0.5
+        width: Math.min(ScreenTools.defaultFontPixelWidth * 42, parent.width * 0.46)
+        height: projectChipLabel.contentHeight + ScreenTools.defaultFontPixelHeight * 0.55
+        radius: ScreenTools.defaultFontPixelWidth * 0.45
+        color: rootItem._inspectionProject && rootItem._inspectionProject.inspectionSelected ? (rootItem._inspectionProject.flightOpen ? "#4012b886" : "#40228be6") : "#40f08c00"
+        border.color: rootItem._inspectionProject && rootItem._inspectionProject.inspectionSelected ? (rootItem._inspectionProject.flightOpen ? "#12b886" : "#228be6") : "#f08c00"
+        border.width: 1
+        z: 995
+
+        QGCLabel {
+            id: projectChipLabel
+            anchors.centerIn: parent
+            width: parent.width - ScreenTools.defaultFontPixelWidth * 1.5
+            text: rootItem._inspectionProject ? rootItem._inspectionProject.chipText : "NO INSPECTION"
+            color: rootItem._inspectionProject && rootItem._inspectionProject.inspectionSelected ? "white" : "#ffd43b"
+            font.pixelSize: 13
+            font.bold: true
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: rootItem.openInspectionProjectDialog()
+        }
+    }
+
     Timer {
         id: flightBudgetTimer
         interval: 1000
@@ -149,7 +198,7 @@ Item {
 
     Rectangle {
         id: flightBudgetPanel
-        anchors.top: clpcDebugPanel.bottom
+        anchors.top: inspectionProjectChip.bottom
         anchors.left: parent.left
         anchors.topMargin: ScreenTools.defaultFontPixelHeight * 0.5
         anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 0.5
@@ -329,6 +378,7 @@ Item {
     readonly property real _flightBudgetBreadcrumbStepM: 0.5
     readonly property int _flightBudgetBreadcrumbCap: 10000
     property var _statusReceiver: QGroundControl.corePlugin.statusReceiver
+    property var _inspectionProject: QGroundControl.corePlugin.inspectionProject
     property int _flightBudgetSafetyBufferS: Math.max(0, Math.min(300, flightBudgetSettings.safetyBufferS))
     property real _flightBudgetRemainingS: NaN
     property real _flightBudgetReturnS: NaN
@@ -569,6 +619,14 @@ Item {
             return 0.0;
         }
         return Math.max(0.0, Math.min(1.0, _flightBudgetInspectionS / 300.0));
+    }
+
+    function openInspectionProjectDialog() {
+        inspectionProjectDialogLoader.active = true;
+        if (inspectionProjectDialogLoader.item) {
+            inspectionProjectDialogLoader.item.project = rootItem._inspectionProject;
+            inspectionProjectDialogLoader.item.open();
+        }
     }
 
     function secondsToHHMMSS(timeS) {

@@ -1,0 +1,56 @@
+{
+  "SURFACE_BAD_ANGLE": {
+    "severity": "warning",
+    "title": "Surface angle out of tolerance",
+    "required_action": "Reposition vehicle or select a better contact point before measuring.",
+    "blocks_flight": false,
+    "blocks_scan": false,
+    "blocks_measure": true,
+    "module": "Proximity"
+  },
+  "SLAM_LOST": {
+    "severity": "critical",
+    "title": "SLAM lost",
+    "required_action": "Stop motion. Hover or hold position, await relocalization, or land.",
+    "blocks_flight": false,
+    "blocks_scan": true,
+    "blocks_measure": true,
+    "module": "SLAM"
+  },
+  "CLPC_STALE": {
+    "severity": "warning",
+    "title": "Point cloud stale",
+    "required_action": "Check CLPC publisher, network link, and companion CPU load.",
+    "blocks_flight": false,
+    "blocks_scan": true,
+    "blocks_measure": true,
+    "module": "CLPC"
+  },
+  "CLST_STALE": {
+    "severity": "warning",
+    "title": "Status channel stale",
+    "required_action": "Check CLST publisher and network link. Readiness and flight budget are unreliable.",
+    "blocks_flight": true,
+    "blocks_scan": true,
+    "blocks_measure": true,
+    "module": "CLST"
+  },
+  "CLPC_LOST": {
+    "severity": "critical",
+    "title": "Point cloud link lost",
+    "required_action": "Restart CLPC publisher or restore network before scanning.",
+    "blocks_flight": false,
+    "blocks_scan": true,
+    "blocks_measure": true,
+    "module": "CLPC"
+  },
+  "CLST_LOST": {
+    "severity": "critical",
+    "title": "Status link lost",
+    "required_action": "Restore CLST before continuing inspection workflow.",
+    "blocks_flight": true,
+    "blocks_scan": true,
+    "blocks_measure": true,
+    "module": "CLST"
+  }
+}

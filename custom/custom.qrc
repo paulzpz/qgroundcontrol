@@ -26,6 +26,11 @@
         <file alias="QGroundControl/MainWindow/MainWindow.qml">src/MainWindow/MainWindow.qml</file>
         <file alias="QGroundControl/FlightMap/Widgets/PhotoVideoControl.qml">src/FlightMap/Widgets/PhotoVideoControl.qml</file>
         <file alias="Custom/PointCloudView.qml">src/PointCloudView.qml</file>
+        <file alias="Custom/InspectionProjectDialog.qml">src/InspectionProjectDialog.qml</file>
+        <file alias="Custom/PreflightChecklistDialog.qml">src/PreflightChecklistDialog.qml</file>
+    </qresource>
+    <qresource prefix="/Custom/data">
+        <file alias="error_catalog.json">res/error_catalog.json</file>
     </qresource>
     <qresource prefix="/Custom/shaders">
         <file alias="pointcloud.vert">src/shaders/pointcloud.vert</file>

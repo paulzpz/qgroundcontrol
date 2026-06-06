@@ -14,6 +14,7 @@ import QtQuick.Controls
 import QtQuick3D
 
 import QGroundControl
+import QGroundControl.ScreenTools
 
 import Custom.PointCloud
 
@@ -22,7 +23,9 @@ Item {
 
     property var pointCloudReceiver: QGroundControl.corePlugin.pointCloudReceiver
     property var statusReceiver: QGroundControl.corePlugin.statusReceiver
+    property var inspectionProject: QGroundControl.corePlugin.inspectionProject
     property var activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var videoManager: QGroundControl.videoManager
 
     readonly property int viewModeFree: 0
     readonly property int viewModeFollow: 1
@@ -58,6 +61,7 @@ Item {
     property real groundGridCell: 1.0
     property real minPointPixels: 1.0
     property bool darkBackground: true
+    property bool errorCatalogExpanded: false
 
     readonly property real followDistance: 6.0
     readonly property real followPitch: -25.0
@@ -142,14 +146,14 @@ Item {
         return "#666666";
     }
 
-    function proximityColor(distance) {
-        if (!root.clstFresh() || distance < 0)
+    function proximityColorForSector(sectorIndex, distance) {
+        if (!root.statusReceiver)
             return "#666666";
-        if (distance < 1.0)
-            return "#e03131";
-        if (distance <= 2.5)
-            return "#ffd43b";
-        return "#12b886";
+        return root.statusReceiver.proximityColor(sectorIndex, distance);
+    }
+
+    function proximityColor(distance) {
+        return root.proximityColorForSector(0, distance);
     }
 
     function sourceBadgeText() {
@@ -191,6 +195,8 @@ Item {
     function scanReadyText() {
         if (!root.statusReceiver || !root.clstFresh())
             return "SCAN NOT READY: CLST no data";
+        if (root.statusReceiver.scanBlockedByError)
+            return "SCAN NOT READY: " + root.statusReceiver.scanBlockReason;
         if (root.clpcState() !== "OK")
             return "SCAN NOT READY: CLPC " + root.clpcState();
         if (!root.statusReceiver.lidarAlive)
@@ -202,6 +208,34 @@ Item {
 
     function readinessColor(text) {
         return text.indexOf(" READY") >= 0 && text.indexOf("NOT READY") < 0 ? "#12b886" : "#e03131";
+    }
+
+    function errorSeverityColor(severity) {
+        if (severity === "critical")
+            return "#e03131";
+        if (severity === "error")
+            return "#f08c00";
+        if (severity === "warning")
+            return "#ffd43b";
+        return "#868e96";
+    }
+
+    function activeErrorRows() {
+        if (!root.statusReceiver)
+            return [];
+        var errors = root.statusReceiver.activeErrors;
+        if (!errors || errors.length === 0)
+            return [];
+        var rows = [];
+        var limit = root.errorCatalogExpanded ? errors.length : Math.min(errors.length, 3);
+        for (var i = 0; i < limit; i++) {
+            rows.push(errors[i]);
+        }
+        return rows;
+    }
+
+    function openPreflightChecklistDialog() {
+        preflightChecklistDialogLoader.active = true;
     }
 
     function applyClpcSettings() {
@@ -540,6 +574,24 @@ Item {
         }
     }
 
+    Loader {
+        id: preflightChecklistDialogLoader
+        active: false
+        source: "qrc:/Custom/qml/Custom/PreflightChecklistDialog.qml"
+        onLoaded: {
+            item.host = root;
+            item.pointCloudReceiver = root.pointCloudReceiver;
+            item.statusReceiver = root.statusReceiver;
+            item.inspectionProject = root.inspectionProject;
+            item.activeVehicle = root.activeVehicle;
+            item.videoManager = root.videoManager;
+            item.closed.connect(function () {
+                preflightChecklistDialogLoader.active = false;
+            });
+            item.open();
+        }
+    }
+
     DragHandler {
         id: rotateHandler
         target: null
@@ -789,13 +841,30 @@ Item {
                 }
             }
 
-            Text {
-                text: root.flightReadyText()
-                color: root.readinessColor(text)
-                font.pointSize: 20
-                font.bold: true
+            Row {
                 width: parent.width
-                elide: Text.ElideRight
+                height: ScreenTools.defaultFontPixelHeight * 2.1
+                spacing: 8
+
+                Text {
+                    text: root.flightReadyText()
+                    color: root.readinessColor(text)
+                    font.pointSize: 20
+                    font.bold: true
+                    width: parent.width - checklistButton.width - parent.spacing
+                    elide: Text.ElideRight
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Button {
+                    id: checklistButton
+                    width: 104
+                    height: 28
+                    text: "CHECKLIST"
+                    font.pixelSize: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: root.openPreflightChecklistDialog()
+                }
             }
             Text {
                 text: root.scanReadyText() + " | MEASURE READY: UNAVAILABLE"
@@ -870,12 +939,77 @@ Item {
                         }
                     }
 
-                    Text {
-                        text: root.statusReceiver && root.statusReceiver.errors.length > 0 ? "Errors: " + root.statusReceiver.errors.join(", ") : "Errors: none"
-                        color: root.statusReceiver && root.statusReceiver.errors.length > 0 ? "#ff8787" : "#aaaaaa"
-                        font.pixelSize: 11
+                    Column {
                         width: 250
-                        elide: Text.ElideRight
+                        spacing: 3
+
+                        Repeater {
+                            model: root.activeErrorRows()
+
+                            Rectangle {
+                                width: 250
+                                height: 38
+                                radius: 3
+                                color: "#202328"
+                                border.width: 1
+                                border.color: root.errorSeverityColor(modelData.severity)
+
+                                MouseArea {
+                                    id: errorMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.errorCatalogExpanded = !root.errorCatalogExpanded
+                                }
+
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    spacing: 1
+
+                                    Text {
+                                        width: parent.width
+                                        text: (modelData.uncatalogued ? "? " : "") + modelData.title + (root.errorCatalogExpanded ? " [" + modelData.code + "]" : "")
+                                        color: root.errorSeverityColor(modelData.severity)
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        text: modelData.required_action
+                                        color: "#f1f3f5"
+                                        font.pixelSize: 12
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                ToolTip.visible: errorMouse.containsMouse
+                                ToolTip.text: modelData.code
+                            }
+                        }
+
+                        Text {
+                            visible: root.statusReceiver && root.statusReceiver.activeErrors.length === 0
+                            text: "Errors: none"
+                            color: "#aaaaaa"
+                            font.pixelSize: 11
+                            width: 250
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            visible: root.statusReceiver && root.statusReceiver.activeErrors.length > 3
+                            text: root.errorCatalogExpanded ? "show less" : "+" + (root.statusReceiver.activeErrors.length - 3) + " more"
+                            color: "#74c0fc"
+                            font.pixelSize: 11
+                            width: 250
+                            elide: Text.ElideRight
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.errorCatalogExpanded = !root.errorCatalogExpanded
+                            }
+                        }
                     }
                 }
 
@@ -901,7 +1035,7 @@ Item {
                                 ctx.moveTo(cx, cy);
                                 ctx.arc(cx, cy, r, start, end, false);
                                 ctx.closePath();
-                                ctx.fillStyle = root.proximityColor(d);
+                                ctx.fillStyle = root.proximityColorForSector(i, d);
                                 ctx.fill();
                                 ctx.strokeStyle = "#222222";
                                 ctx.lineWidth = 2;
@@ -914,8 +1048,16 @@ Item {
                         }
                     }
                     Text {
+                        text: root.statusReceiver ? root.statusReceiver.proximityContextLabel : "FREE"
+                        color: root.clstFresh() ? "#ced4da" : "#666666"
+                        font.pixelSize: 11
+                        font.bold: true
+                        width: 150
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Text {
                         text: root.clstFresh() && root.statusReceiver.frontM >= 0 ? root.statusReceiver.frontM.toFixed(2) + " m" : "NO DATA"
-                        color: root.statusReceiver ? root.proximityColor(root.statusReceiver.frontM) : "#666666"
+                        color: root.statusReceiver ? root.proximityColorForSector(0, root.statusReceiver.frontM) : "#666666"
                         font.pointSize: 28
                         font.bold: true
                         width: 150

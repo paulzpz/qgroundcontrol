@@ -20,6 +20,8 @@
 #include <QtNetwork/QAbstractSocket>
 #include <QtNetwork/QTcpSocket>
 
+#include "ErrorCatalog.h"
+
 class CustomStatusReceiver : public QObject
 {
     Q_OBJECT
@@ -41,6 +43,11 @@ class CustomStatusReceiver : public QObject
     Q_PROPERTY(float evRateHz READ evRateHz NOTIFY statusReceived)
     Q_PROPERTY(bool recActive READ recActive NOTIFY statusReceived)
     Q_PROPERTY(QStringList errors READ errors NOTIFY statusReceived)
+    Q_PROPERTY(QVariantList activeErrors READ activeErrors NOTIFY statusUpdated)
+    Q_PROPERTY(bool scanBlockedByError READ scanBlockedByError NOTIFY statusUpdated)
+    Q_PROPERTY(QString scanBlockReason READ scanBlockReason NOTIFY statusUpdated)
+    Q_PROPERTY(QString proximityContext READ proximityContext NOTIFY statusUpdated)
+    Q_PROPERTY(QString proximityContextLabel READ proximityContextLabel NOTIFY statusUpdated)
     Q_PROPERTY(QString host READ host NOTIFY networkSettingsChanged)
     Q_PROPERTY(int port READ port NOTIFY networkSettingsChanged)
     Q_PROPERTY(QString lastTestResult READ lastTestResult NOTIFY lastTestResultChanged)
@@ -66,6 +73,13 @@ public:
     float evRateHz() const { return _evRateHz; }
     bool recActive() const { return _recActive; }
     QStringList errors() const { return _errors; }
+    QVariantList activeErrors() const;
+    bool scanBlockedByError() const;
+    QString scanBlockReason() const;
+    QString proximityContext() const;
+    QString proximityContextLabel() const;
+    Q_INVOKABLE QString proximityContextFor(const QString& missionState, const QString& missionStage) const;
+    Q_INVOKABLE QString proximityColor(int sectorIndex, double distance) const;
     QString host() const { return _serverHost; }
     int port() const { return _serverPort; }
     QString lastTestResult() const { return _lastTestResult; }
@@ -123,6 +137,8 @@ private:
     float _evRateHz = 0.0f;
     bool _recActive = false;
     QStringList _errors;
+    QString _lastProximityContext = QStringLiteral("FREE_FLIGHT");
+    ErrorCatalog _errorCatalog;
 
     QElapsedTimer _lastStatusTime;
     QTimer* _statusTimer = nullptr;
