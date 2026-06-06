@@ -95,3 +95,6 @@ docs/.vitepress/dist/
 
 CMakeUserPresets.json
 cpm_modules
+
+# Local Python environments
+scripts/phase3c/venv/
